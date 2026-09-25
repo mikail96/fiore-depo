@@ -301,3 +301,8 @@ textarea { padding: 12px; resize: none; line-height: 1.4; }
 .etiket-yigin { flex: 1; gap: 1px; }
 .etiket-yigin small { font-size: 12px; }
 .sube-fiyatlari .alan .etiket-yigin .etiket { flex: none; }
+.secim-karti { display: flex; align-items: center; gap: 14px; width: 100%; min-height: 72px; padding: 14px 16px; text-align: left;
+  border: 1.5px solid var(--cizgi); border-radius: 14px; background: #fff; cursor: pointer; }
+.secim-karti:hover { border-color: var(--siyah); }
+.secim-karti svg { flex-shrink: 0; color: var(--turuncu-koyu); }
+.secim-karti b { font-size: 16px; }

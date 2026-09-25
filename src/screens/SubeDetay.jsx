@@ -1,10 +1,10 @@
 import { useMemo, useRef, useState } from 'react';
 import { useFisler } from '../data';
 import { KarOzetKutusu, KarYazisi } from '../KarOzeti';
-import { RaporBelgesi } from '../RaporBelgesi';
+import { RaporBelgesi, SubeDokumu } from '../RaporBelgesi';
 import { GRUPLAR } from '../seed';
 import { excelIndir, kutuphaneleriHazirla, pdfIndir } from '../share';
-import { AltBaslik, Bos, Ikon, Sekmeler, Yukleniyor } from '../ui';
+import { AltBaslik, Bos, Ikon, Panel, Sekmeler, Yukleniyor } from '../ui';
 import { AYLAR, TL, TL0, ayEkle, grupla, karOzeti, miktar, tarihYaz, urunToplamlari } from '../utils';
 
 const kisa = (t) => (t === 0 ? '—' : t < 10000 ? TL0(t) : `${Math.round(t / 1000)} B ₺`);
@@ -18,6 +18,8 @@ export default function SubeDetay({ id, ay, subeler, urunler: urunKatalogu }) {
   const [sekme, setSekme] = useState('urun');
   const [bekle, setBekle] = useState(false);
   const belgeRef = useRef(null);
+  const dokumRef = useRef(null);
+  const [pdfSecim, setPdfSecim] = useState(false);
   const urunMap = useMemo(() => new Map(urunKatalogu.list.map((u) => [u.id, u])), [urunKatalogu.list]);
 
   const fisler = list.filter((f) => f.subeId === id);
@@ -48,9 +50,11 @@ export default function SubeDetay({ id, ay, subeler, urunler: urunKatalogu }) {
     ], `${ad}-${ayAd}`.replace(/\s+/g, '-'));
   }
 
-  async function pdf() {
-    setBekle(true);
-    try { await pdfIndir(belgeRef.current, `${ad}-${AYLAR[secilenAy.m]}-${secilenAy.y}`.replace(/\s+/g, '-')); }
+  // subeIcin: şubeye gönderilecek döküm (maliyet ve kâr yok); değilse kâr ve maliyetli iç rapor
+  async function pdf(subeIcin) {
+    setPdfSecim(false); setBekle(true);
+    const ek = subeIcin ? 'sevk-dokumu' : 'kar-raporu';
+    try { await pdfIndir((subeIcin ? dokumRef : belgeRef).current, `${ad}-${AYLAR[secilenAy.m]}-${secilenAy.y}-${ek}`.replace(/\s+/g, '-')); }
     catch (e) { console.error(e); window.alert('PDF hazırlanamadı. Tekrar dene.'); }
     setBekle(false);
   }
@@ -112,14 +116,25 @@ export default function SubeDetay({ id, ay, subeler, urunler: urunKatalogu }) {
       </main>
       <div className="alt-cubuk">
         <button type="button" className="dugme cizgili" onClick={excel} disabled={!secili.length}><Ikon ad="dl" boyut={20} />Excel</button>
-        <button type="button" className="dugme cizgili" onClick={pdf} onPointerEnter={kutuphaneleriHazirla} disabled={!secili.length || bekle}><Ikon ad="doc" boyut={20} />{bekle ? '…' : 'PDF'}</button>
+        <button type="button" className="dugme cizgili" onClick={() => { kutuphaneleriHazirla(); setPdfSecim(true); }} disabled={!secili.length || bekle}><Ikon ad="doc" boyut={20} />{bekle ? '…' : 'PDF'}</button>
         {sube && !sube.silinmis && sube.aktif !== false
           ? <a className="dugme siyah genis" href={`#/fis/yeni?sube=${id}`}><Ikon ad="plus" boyut={20} kalinlik={2.2} />Fiş kes</a>
           : <span className="soluk genis">Bu şube pasif.</span>}
       </div>
       <div className="gizli-belge" aria-hidden="true">
         <RaporBelgesi ref={belgeRef} baslik={`${ad}, ${AYLAR[secilenAy.m]} ${secilenAy.y}`} fisler={secili} urunMap={urunMap} tekSube />
+        <SubeDokumu ref={dokumRef} subeAd={ad} donem={`${AYLAR[secilenAy.m]} ${secilenAy.y}`} fisler={secili} urunMap={urunMap} />
       </div>
+      <Panel acik={pdfSecim} baslik={`${AYLAR[secilenAy.m]} ${secilenAy.y} PDF`} onKapat={() => setPdfSecim(false)}>
+        <button type="button" className="secim-karti" onClick={() => pdf(true)}>
+          <Ikon ad="share" boyut={24} />
+          <span className="yigin"><b>Şubeye gönder</b><small>Giden ürünler, tutarlar ve fiş listesi. Maliyet ve kâr yok.</small></span>
+        </button>
+        <button type="button" className="secim-karti" onClick={() => pdf(false)}>
+          <Ikon ad="chart" boyut={24} />
+          <span className="yigin"><b>Benim için</b><small>Aynı liste, maliyet ve kâr sütunlarıyla. Şubeye gönderme.</small></span>
+        </button>
+      </Panel>
     </div>
   );
 }

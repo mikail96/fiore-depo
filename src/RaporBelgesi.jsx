@@ -105,3 +105,60 @@ export const RaporBelgesi = forwardRef(function RaporBelgesi({ baslik, fisler, u
     </article>
   );
 });
+
+// Şubeye gönderilecek aylık sevk dökümü. Bilerek maliyet ve kâr hesaplamaz; sadece şubenin
+// o ay aldığı ürünler, tutarlar ve fişler yer alır.
+export const SubeDokumu = forwardRef(function SubeDokumu({ subeAd, donem, fisler, urunMap }, ref) {
+  // urunMap sadece ürün gruplarını bulmak için; maliyet ve kâr burada gösterilmez
+  const gruplar = grupla(urunToplamlari(fisler, urunMap), GRUPLAR);
+  const ara = fisler.reduce((t, f) => t + (f.araToplam || 0), 0);
+  const kdv = fisler.reduce((t, f) => t + (f.kdvToplam || 0), 0);
+  const bedelsiz = fisler.reduce((t, f) => t + (f.bedelsizDeger || 0), 0);
+  return (
+    <article ref={ref} className="belge rapor">
+      <div className="belge-ust">
+        <div className="belge-marka">
+          <img src={`${import.meta.env.BASE_URL}logo.png`} alt="" width="46" height="46" />
+          <span className="yigin"><b>Caffe Di Fiore</b><small>Ana depo sevk dökümü</small></span>
+        </div>
+        <span className="yigin sag"><b>{subeAd}</b><small>{donem}</small></span>
+      </div>
+      <div className="rapor-ozet" data-pdf-blok>
+        <div><span>Toplam (KDV hariç)</span><b>{TL(ara)}</b></div>
+        <div><span>KDV</span><b>{TL(kdv)}</b></div>
+        <div><span>KDV dahil</span><b>{TL(ara + kdv)}</b></div>
+        <div><span>Sevk fişi</span><b>{fisler.length}</b></div>
+      </div>
+      <div className="rapor-not" data-pdf-blok>
+        <span>{donem} içinde ana depodan {subeAd} şubesine gönderilen ürünlerin toplamı.</span>
+        {bedelsiz > 0 && <span>Bedelsiz gönderilen ürünler tutara dahil değildir ({TL(bedelsiz)} değerinde).</span>}
+      </div>
+      <h3 className="rapor-baslik">Giden ürünler</h3>
+      <table className="belge-tablo rapor-tablo">
+        <thead><tr><th>Ürün</th><th>Miktar</th><th>Tutar</th></tr></thead>
+        <tbody>
+          {gruplar.flatMap((g) => [
+            <tr key={`g-${g.grup}`} className="grup-satir"><td>{g.grup}</td><td /><td>{para(g.tutar)}</td></tr>,
+            ...g.urunler.map((u) => (
+              <tr key={`${g.grup}-${u.ad}`}>
+                <td>{u.ad}</td>
+                <td>{miktar(u.adet)} {u.birim}{u.bedelsizAdet ? ` (${miktar(u.bedelsizAdet)} bedelsiz)` : ''}</td>
+                <td>{u.bedelsizAdet === u.adet ? 'Bedelsiz' : para(u.tutar)}</td>
+              </tr>
+            ))
+          ])}
+          <tr className="rapor-toplam"><td>Toplam (KDV hariç)</td><td /><td>{para(ara)}</td></tr>
+        </tbody>
+      </table>
+      <h3 className="rapor-baslik">Sevk fişleri</h3>
+      <table className="belge-tablo rapor-tablo">
+        <thead><tr><th>Fiş no</th><th>Tarih</th><th>Kalem</th><th>Tutar</th></tr></thead>
+        <tbody>
+          {fisler.slice().sort((a, b) => a.tarih - b.tarih).map((f) => (
+            <tr key={f.id}><td>{f.no}</td><td>{tarihYaz(f.tarih)}</td><td>{f.satirlar.length}</td><td>{para(f.araToplam)}</td></tr>
+          ))}
+        </tbody>
+      </table>
+    </article>
+  );
+});
