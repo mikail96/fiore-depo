@@ -265,3 +265,4 @@ textarea { padding: 12px; resize: none; line-height: 1.4; }
 .belge-tablo td.bedelsiz { color: var(--yesil); font-weight: 700; }
 .dosya-sec { position: relative; cursor: pointer; }
 .dosya-sec input { position: absolute; inset: 0; opacity: 0; cursor: pointer; width: 100%; }
+.bilgi.hata-kutu { background: #F6DEDC; color: var(--kirmizi); justify-content: flex-start; font-weight: 600; font-size: 15px; }

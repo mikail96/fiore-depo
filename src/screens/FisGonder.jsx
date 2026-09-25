@@ -1,6 +1,6 @@
 import { forwardRef, useEffect, useRef, useState } from 'react';
 import { fisSil, useFis } from '../data';
-import { dosyaPaylas, gorselDosya, pdfIndir } from '../share';
+import { dosyaPaylas, gorselDosya, kutuphaneleriHazirla, pdfIndir } from '../share';
 import { AltBaslik, Bos, Ikon, Sekmeler, Yukleniyor } from '../ui';
 import { TL, hesapla, miktar, para, tarihYaz } from '../utils';
 
@@ -59,6 +59,8 @@ export default function FisGonder({ id, parametre }) {
   const [fiyatli, setFiyatli] = useState(() => localStorage.getItem(FIYAT_TERCIH) !== '0');
   const [bekle, setBekle] = useState('');
   const [mesaj, setMesaj] = useState(parametre.yeni ? 'Fiş kaydedildi.' : parametre.guncellendi ? 'Değişiklikler kaydedildi.' : '');
+  const [hata, setHata] = useState('');
+  useEffect(() => { kutuphaneleriHazirla(); }, []);
   const belgeRef = useRef(null);
   const hazir = useRef(null);
   const imza = fis ? `${fis.id}|${fiyatli}|${fis.guncelleme?.seconds || ''}|${fis.no}|${JSON.stringify(fis.satirlar)}|${fis.not}|${fis.kdvDahil}` : '';
@@ -84,7 +86,7 @@ export default function FisGonder({ id, parametre }) {
   const fiyatSec = (v) => { setFiyatli(v); localStorage.setItem(FIYAT_TERCIH, v ? '1' : '0'); };
 
   async function paylas() {
-    setMesaj('');
+    setMesaj(''); setHata('');
     try {
       let dosya = hazir.current?.imza === imza ? hazir.current.dosya : null;
       if (!dosya) {
@@ -95,12 +97,12 @@ export default function FisGonder({ id, parametre }) {
       const r = await dosyaPaylas(dosya);
       if (r === 'indirildi') setMesaj('Bu cihaz paylaş menüsünü desteklemiyor, görsel indirildi.');
       if (r === 'tekrar') setMesaj('Görsel hazır, paylaşmak için butona tekrar bas.');
-    } catch { setMesaj('Görsel hazırlanamadı. Tekrar dene.'); }
+    } catch (e) { console.error(e); setHata('Görsel hazırlanamadı. Tekrar dene.'); }
     setBekle('');
   }
   async function pdf() {
-    setBekle('pdf'); setMesaj('');
-    try { await pdfIndir(belgeRef.current, dosyaAdi); } catch { setMesaj('PDF hazırlanamadı. Tekrar dene.'); }
+    setBekle('pdf'); setMesaj(''); setHata('');
+    try { await pdfIndir(belgeRef.current, dosyaAdi); } catch (e) { console.error(e); setHata('PDF hazırlanamadı. Tekrar dene.'); }
     setBekle('');
   }
   function sil() {
@@ -114,6 +116,7 @@ export default function FisGonder({ id, parametre }) {
       <AltBaslik geri="#/fisler" geriEtiket="Fişler" baslik="Fişi gönder" alt={`${fis.no || ''}, ${fis.subeAd}`} />
       <main className="icerik">
         {mesaj && <div className="bilgi basari"><Ikon ad="check" /><span>{mesaj}</span></div>}
+        {hata && <div className="bilgi hata-kutu" role="alert"><Ikon ad="x" /><span>{hata}</span></div>}
         <Sekmeler secenekler={[[true, 'Fiyatlı'], [false, 'Fiyatsız']]} secili={fiyatli} onSec={fiyatSec} />
         <p className="soluk">{fiyatli ? 'Şube ürünleri birim fiyat, tutar ve KDV ile görür.' : 'Şube sadece ürünleri ve adetleri görür, fiyat yazmaz.'} Aşağıdaki fiş olduğu gibi resim ya da PDF olarak gider.</p>
         <div className="belge-cerceve"><FisBelgesi ref={belgeRef} fis={fis} fiyatli={fiyatli} /></div>

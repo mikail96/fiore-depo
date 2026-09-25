@@ -1,6 +1,20 @@
+// Eski sürüm açıkken yeni sürüm yayınlanırsa kütüphane parçası bulunamaz: sayfayı bir kez yenile.
+export function modulHatasi() {
+  const k = 'fiore-modul-yenileme';
+  if (Date.now() - Number(sessionStorage.getItem(k) || 0) > 30000) {
+    sessionStorage.setItem(k, String(Date.now()));
+    window.location.reload();
+  }
+}
+async function yukle(fn) {
+  try { return await fn(); }
+  catch (e) { modulHatasi(); throw e; }
+}
+export const kutuphaneleriHazirla = () => { yukle(() => import('jspdf')).catch(() => {}); yukle(() => import('html2canvas')).catch(() => {}); };
+
 // Fişi görsel (PNG) ya da PDF olarak dışarı verir, raporları Excel'e aktarır.
 async function tuval(el) {
-  const html2canvas = (await import('html2canvas')).default;
+  const html2canvas = (await yukle(() => import('html2canvas'))).default;
   if (document.fonts?.ready) await document.fonts.ready;
   return html2canvas(el, { scale: 2, backgroundColor: '#ffffff', useCORS: true, logging: false });
 }
@@ -53,7 +67,7 @@ async function a4Kopya(el) {
 }
 
 export async function pdfIndir(el, ad) {
-  const { jsPDF } = await import('jspdf');
+  const { jsPDF } = await yukle(() => import('jspdf'));
   const { kap, kopya } = await a4Kopya(el);
   try {
     const canvas = await tuval(kopya);
@@ -106,7 +120,7 @@ export async function pdfIndir(el, ad) {
 
 // sayfalar: [[sayfaAdı, [[başlık...], [satır...], ...]], ...]
 export async function excelIndir(sayfalar, ad) {
-  const XLSX = await import('xlsx');
+  const XLSX = await yukle(() => import('xlsx'));
   const wb = XLSX.utils.book_new();
   for (const [sayfaAdi, satirlar] of sayfalar) {
     const ws = XLSX.utils.aoa_to_sheet(satirlar);
