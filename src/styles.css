@@ -200,8 +200,8 @@ textarea { padding: 12px; resize: none; line-height: 1.4; }
 .belge-ust .yigin.sag b { font-size: 14px; }
 .belge-taraf { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; font-size: 13px; }
 .belge-tablo { width: 100%; border-collapse: collapse; font-size: 12.5px; }
-.belge-tablo th { font-size: 11px; font-weight: 700; color: var(--soluk); text-align: right; padding: 6px 0 6px 6px; border-bottom: 1.5px solid var(--siyah); }
-.belge-tablo td { padding: 7px 0 7px 6px; border-bottom: 1px solid var(--cizgi); text-align: right; white-space: nowrap; vertical-align: top; }
+.belge-tablo th { font-size: 11px; font-weight: 700; color: var(--soluk); text-align: right; padding: 6px 0 6px 12px; border-bottom: 1.5px solid var(--siyah); }
+.belge-tablo td { padding: 7px 0 7px 12px; border-bottom: 1px solid var(--cizgi); text-align: right; white-space: nowrap; vertical-align: top; }
 .belge-tablo th:first-child, .belge-tablo td:first-child { text-align: left; padding-left: 0; white-space: normal; width: 100%; }
 .belge-toplam { display: flex; flex-direction: column; gap: 5px; font-size: 12.5px; }
 .belge-toplam > div { display: flex; justify-content: space-between; gap: 10px; }

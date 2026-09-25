@@ -34,22 +34,74 @@ export async function dosyaPaylas(dosya) {
   return 'indirildi';
 }
 
-// A4 PDF. Uzun fişler birden fazla sayfaya bölünür.
+// A4 PDF. Belge A4 genişliğinde ayrı bir kopya olarak çizilir; sayfalar satır aralarından bölünür
+// (hiçbir satır iki sayfaya bölünmez), tablo başlığı her sayfada tekrar eder, altta sayfa numarası olur.
+const PDF_GENISLIK = 680; // px, A4'ün yazı alanına karşılık gelir
+
+async function a4Kopya(el) {
+  const kap = document.createElement('div');
+  kap.style.cssText = `position:fixed;left:-${PDF_GENISLIK * 3}px;top:0;width:${PDF_GENISLIK}px;background:#fff;pointer-events:none;`;
+  const kopya = el.cloneNode(true);
+  kopya.style.width = `${PDF_GENISLIK}px`;
+  kopya.style.maxWidth = 'none';
+  kopya.style.borderRadius = '0';
+  kopya.style.boxShadow = 'none';
+  kap.appendChild(kopya);
+  document.body.appendChild(kap);
+  await Promise.all([...kopya.querySelectorAll('img')].map((i) => (i.complete ? null : i.decode().catch(() => null))));
+  return { kap, kopya };
+}
+
 export async function pdfIndir(el, ad) {
-  const [{ jsPDF }, canvas] = await Promise.all([import('jspdf'), tuval(el)]);
-  const pdf = new jsPDF({ unit: 'mm', format: 'a4' });
-  const kenar = 10, gen = 210 - kenar * 2, sayfaYuk = 297 - kenar * 2;
-  const pxMm = canvas.width / gen;
-  const dilimPx = Math.floor(sayfaYuk * pxMm);
-  for (let y = 0, sayfa = 0; y < canvas.height; y += dilimPx, sayfa++) {
-    const h = Math.min(dilimPx, canvas.height - y);
-    const parca = document.createElement('canvas');
-    parca.width = canvas.width; parca.height = h;
-    parca.getContext('2d').drawImage(canvas, 0, y, canvas.width, h, 0, 0, canvas.width, h);
-    if (sayfa > 0) pdf.addPage();
-    pdf.addImage(parca.toDataURL('image/jpeg', 0.92), 'JPEG', kenar, kenar, gen, h / pxMm);
+  const { jsPDF } = await import('jspdf');
+  const { kap, kopya } = await a4Kopya(el);
+  try {
+    const canvas = await tuval(kopya);
+    const kok = kopya.getBoundingClientRect();
+    const olcek = canvas.height / kok.height;
+    const y = (e, kenar) => (e.getBoundingClientRect()[kenar] - kok.top) * olcek;
+    // güvenli kesme noktaları: satır ve blok altları
+    const kesmeler = [...kopya.querySelectorAll('.belge-ust, .belge-taraf, thead tr, tbody tr, .belge-toplam > div, .belge-kalem, .belge-not, .belge-imza')]
+      .map((e) => y(e, 'bottom')).sort((a, b) => a - b);
+    const thead = kopya.querySelector('thead');
+    const govdeSon = kopya.querySelector('tbody tr:last-child');
+    const bas = thead ? { ust: y(thead, 'top'), alt: y(thead, 'bottom') } : null;
+    const tabloSonu = govdeSon ? y(govdeSon, 'bottom') : 0;
+
+    const pdf = new jsPDF({ unit: 'mm', format: 'a4' });
+    const kenar = 12, gen = 210 - kenar * 2, sayfaYuk = 297 - kenar * 2 - 6; // altta sayfa no payı
+    const pxMm = canvas.width / gen;
+    const sayfaPx = Math.floor(sayfaYuk * pxMm);
+    let bas_y = 0, sayfa = 0;
+    while (bas_y < canvas.height - 2) {
+      const tekrar = sayfa > 0 && bas && bas_y >= bas.alt && bas_y < tabloSonu - 2;
+      const baslikPx = tekrar ? Math.ceil(bas.alt - bas.ust) : 0;
+      const sinir = bas_y + sayfaPx - baslikPx;
+      let son = canvas.height;
+      if (sinir < canvas.height) {
+        const uygun = kesmeler.filter((k) => k > bas_y + 4 && k <= sinir);
+        son = uygun.length ? uygun[uygun.length - 1] : sinir; // tek parça sayfaya sığmıyorsa mecburen böl
+      }
+      son = Math.round(son);
+      const govdePx = son - bas_y;
+      const parca = document.createElement('canvas');
+      parca.width = canvas.width; parca.height = baslikPx + govdePx;
+      const ctx = parca.getContext('2d');
+      ctx.fillStyle = '#fff'; ctx.fillRect(0, 0, parca.width, parca.height);
+      if (tekrar) ctx.drawImage(canvas, 0, Math.round(bas.ust), canvas.width, baslikPx, 0, 0, canvas.width, baslikPx);
+      ctx.drawImage(canvas, 0, bas_y, canvas.width, govdePx, 0, baslikPx, canvas.width, govdePx);
+      if (sayfa > 0) pdf.addPage();
+      pdf.addImage(parca.toDataURL('image/jpeg', 0.92), 'JPEG', kenar, kenar, gen, parca.height / pxMm);
+      bas_y = son; sayfa++;
+    }
+    if (sayfa > 1) {
+      pdf.setFontSize(8); pdf.setTextColor(120);
+      for (let i = 1; i <= sayfa; i++) { pdf.setPage(i); pdf.text(`${i} / ${sayfa}`, 105, 291, { align: 'center' }); }
+    }
+    indir(pdf.output('blob'), `${ad}.pdf`);
+  } finally {
+    kap.remove();
   }
-  indir(pdf.output('blob'), `${ad}.pdf`);
 }
 
 // sayfalar: [[sayfaAdı, [[başlık...], [satır...], ...]], ...]
