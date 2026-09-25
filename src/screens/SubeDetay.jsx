@@ -1,18 +1,24 @@
-import { useState } from 'react';
+import { useMemo, useRef, useState } from 'react';
 import { useFisler } from '../data';
-import { excelIndir } from '../share';
+import { KarOzetKutusu, KarYazisi } from '../KarOzeti';
+import { RaporBelgesi } from '../RaporBelgesi';
+import { GRUPLAR } from '../seed';
+import { excelIndir, kutuphaneleriHazirla, pdfIndir } from '../share';
 import { AltBaslik, Bos, Ikon, Sekmeler, Yukleniyor } from '../ui';
-import { AYLAR, TL, TL0, ayEkle, miktar, tarihYaz, urunToplamlari } from '../utils';
+import { AYLAR, TL, TL0, ayEkle, grupla, karOzeti, miktar, tarihYaz, urunToplamlari } from '../utils';
 
 const kisa = (t) => (t === 0 ? '—' : t < 10000 ? TL0(t) : `${Math.round(t / 1000)} B ₺`);
 
-export default function SubeDetay({ id, ay, subeler }) {
+export default function SubeDetay({ id, ay, subeler, urunler: urunKatalogu }) {
   const aylar = [-5, -4, -3, -2, -1, 0].map((d) => ayEkle(ay, d));
   const bas = new Date(aylar[0].y, aylar[0].m, 1);
   const son = new Date(ay.y, ay.m + 1, 1);
   const { list, yuklendi } = useFisler(bas, son);
   const [secim, setSecim] = useState(5);
   const [sekme, setSekme] = useState('urun');
+  const [bekle, setBekle] = useState(false);
+  const belgeRef = useRef(null);
+  const urunMap = useMemo(() => new Map(urunKatalogu.list.map((u) => [u.id, u])), [urunKatalogu.list]);
 
   const fisler = list.filter((f) => f.subeId === id);
   const sube = subeler.list.find((s) => s.id === id) || (fisler[0] && { ad: fisler[0].subeAd, silinmis: true });
@@ -22,7 +28,9 @@ export default function SubeDetay({ id, ay, subeler }) {
   const toplam = secili.reduce((a, f) => a + (f.araToplam || 0), 0);
   const dahil = secili.reduce((a, f) => a + (f.kdvDahilToplam || 0), 0);
   const bedelsiz = secili.reduce((a, f) => a + (f.bedelsizDeger || 0), 0);
-  const urunler = urunToplamlari(secili);
+  const urunler = urunToplamlari(secili, urunMap);
+  const gruplar = grupla(urunler, GRUPLAR);
+  const o = karOzeti(secili, urunMap);
 
   if (subeler.yuklendi && yuklendi && !sube) {
     return <div className="ekran"><AltBaslik geri="#/subeler" geriEtiket="Şubeler" baslik="Şube bulunamadı" /><Bos>Bu şube kaldırılmış olabilir.</Bos></div>;
@@ -33,9 +41,18 @@ export default function SubeDetay({ id, ay, subeler }) {
   function excel() {
     const ayAd = `${AYLAR[secilenAy.m]} ${secilenAy.y}`;
     excelIndir([
-      ['Ürünler', [['Ürün', 'Birim', 'Adet', 'Bedelsiz adet', 'Tutar (KDV hariç)'], ...urunler.map((u) => [u.ad, u.birim, u.adet, u.bedelsizAdet, u.tutar]), [], ['Toplam', '', '', '', toplam]]],
+      ['Ürünler', [['Ürün', 'Grup', 'Birim', 'Adet', 'Bedelsiz adet', 'Satış (KDV hariç)', 'Maliyet', 'Kâr'],
+        ...urunler.map((u) => [u.ad, u.grup, u.birim, u.adet, u.bedelsizAdet, u.tutar, u.kar === null ? '' : u.maliyet, u.kar === null ? '' : u.kar]),
+        [], ['Toplam', '', '', '', '', toplam, o.hesaplandi ? o.maliyet : '', o.hesaplandi ? o.kar : '']]],
       ['Fişler', [['Fiş no', 'Tarih', 'Kalem', 'Ara toplam', 'KDV', 'KDV dahil'], ...secili.map((f) => [f.no, tarihYaz(f.tarih), f.satirlar.length, f.araToplam, f.kdvToplam, f.kdvDahilToplam])]]
     ], `${ad}-${ayAd}`.replace(/\s+/g, '-'));
+  }
+
+  async function pdf() {
+    setBekle(true);
+    try { await pdfIndir(belgeRef.current, `${ad}-${AYLAR[secilenAy.m]}-${secilenAy.y}`.replace(/\s+/g, '-')); }
+    catch (e) { console.error(e); window.alert('PDF hazırlanamadı. Tekrar dene.'); }
+    setBekle(false);
   }
 
   return (
@@ -55,16 +72,29 @@ export default function SubeDetay({ id, ay, subeler }) {
           <div className="buyuk-tutar orta"><span>{TL(toplam)}</span><b className="kdv-etiket">+ KDV</b></div>
           <span className="soluk">KDV dahil {TL(dahil)}, {secili.length} sevk fişi</span>
           {bedelsiz > 0 && <span className="soluk">Bedelsiz gönderilen: {TL(bedelsiz)} değerinde</span>}
+          {secili.length > 0 && <KarOzetKutusu o={o} />}
         </section>
         <Sekmeler secenekler={[['urun', `Ürünler (${urunler.length})`], ['fis', `Fişler (${secili.length})`]]} secili={sekme} onSec={setSekme} />
         {!yuklendi && <Yukleniyor />}
         {yuklendi && secili.length === 0 && <Bos>Bu ay bu şubeye fiş kesilmemiş.</Bos>}
         {sekme === 'urun' && urunler.length > 0 && (
           <section className="kart sikisik">
-            {urunler.map((u) => (
-              <div key={u.ad} className="liste-satir">
-                <span className="yigin"><b>{u.ad}</b><small>{miktar(u.adet)} {u.birim}{u.bedelsizAdet ? `, ${miktar(u.bedelsizAdet)} bedelsiz` : ''}</small></span>
-                {u.bedelsizAdet === u.adet ? <b className="nowrap metin-yesil">Bedelsiz</b> : <b className="nowrap">{TL(u.tutar)}</b>}
+            <p className="soluk kucuk-yazi">Ay içindeki bütün fişlerin toplamı: her ürün tek satırda, gruplara ayrılmış.</p>
+            {gruplar.map((g) => (
+              <div key={g.grup}>
+                <div className="grup-baslik">
+                  <b>{g.grup}</b>
+                  <span className="yigin sag"><b className="nowrap">{TL(g.tutar)}</b>{!g.karEksik && o.hesaplandi && <KarYazisi kar={g.kar} />}</span>
+                </div>
+                {g.urunler.map((u) => (
+                  <div key={u.ad} className="liste-satir">
+                    <span className="yigin"><b>{u.ad}</b><small>{miktar(u.adet)} {u.birim}{u.bedelsizAdet ? `, ${miktar(u.bedelsizAdet)} bedelsiz` : ''}</small></span>
+                    <span className="yigin sag">
+                      {u.bedelsizAdet === u.adet ? <b className="nowrap metin-yesil">Bedelsiz</b> : <b className="nowrap">{TL(u.tutar)}</b>}
+                      {o.hesaplandi && <KarYazisi kar={u.kar} />}
+                    </span>
+                  </div>
+                ))}
               </div>
             ))}
           </section>
@@ -82,9 +112,13 @@ export default function SubeDetay({ id, ay, subeler }) {
       </main>
       <div className="alt-cubuk">
         <button type="button" className="dugme cizgili" onClick={excel} disabled={!secili.length}><Ikon ad="dl" boyut={20} />Excel</button>
+        <button type="button" className="dugme cizgili" onClick={pdf} onPointerEnter={kutuphaneleriHazirla} disabled={!secili.length || bekle}><Ikon ad="doc" boyut={20} />{bekle ? '…' : 'PDF'}</button>
         {sube && !sube.silinmis && sube.aktif !== false
-          ? <a className="dugme siyah genis" href={`#/fis/yeni?sube=${id}`}><Ikon ad="plus" boyut={20} kalinlik={2.2} />Bu şubeye fiş kes</a>
+          ? <a className="dugme siyah genis" href={`#/fis/yeni?sube=${id}`}><Ikon ad="plus" boyut={20} kalinlik={2.2} />Fiş kes</a>
           : <span className="soluk genis">Bu şube pasif.</span>}
+      </div>
+      <div className="gizli-belge" aria-hidden="true">
+        <RaporBelgesi ref={belgeRef} baslik={`${ad}, ${AYLAR[secilenAy.m]} ${secilenAy.y}`} fisler={secili} urunMap={urunMap} tekSube />
       </div>
     </div>
   );

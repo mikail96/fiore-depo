@@ -101,7 +101,9 @@ export default function FisEditor({ id, subeler, urunler, parametre }) {
     if (!d.satirlar.some((s) => sayiAl(s.adet) > 0)) { setHata('Fişe en az bir ürün ekle.'); return; }
     setBekle(true);
     try {
-      const yeniId = await fisKaydet(id, { tarih: inputtanTarih(d.tarih), sube: { id: sube.id, ad: sube.ad }, satirlar: d.satirlar, kdvDahil: d.kdvDahil, not: d.not });
+      const yeniId = await fisKaydet(id, { tarih: inputtanTarih(d.tarih), sube: { id: sube.id, ad: sube.ad }, satirlar: d.satirlar.map((s) => ({
+        ...s, maliyet: s.maliyet ?? urunler.list.find((u) => u.id === s.urunId)?.maliyet ?? null
+      })), kdvDahil: d.kdvDahil, not: d.not });
       if (!duzenleme) localStorage.removeItem(TASLAK);
       window.location.hash = `#/fis/${yeniId}?${duzenleme ? 'guncellendi' : 'yeni'}=1`;
     } catch {

@@ -65,16 +65,79 @@ export function fiyatBul(urun, subeId) {
   return n > 0 ? { fiyat: n, subeFiyati: true, bedelsiz: false } : { fiyat: standart, subeFiyati: false, bedelsiz: true };
 }
 
-// Fişlerdeki ürünleri toplar: [{ad, birim, adet, bedelsizAdet, tutar}]. Bedelsiz adetler tutara girmez.
-export function urunToplamlari(fisler) {
+// ---- Maliyet ve kâr (hepsi KDV hariç) ----
+const girilmis = (v) => v !== undefined && v !== null && v !== '';
+export const maliyetVar = (u) => girilmis(u?.maliyet);
+
+// Satırın birim maliyeti: fiş kesilirken saklanan maliyet; yoksa (maliyet sonradan girildiyse)
+// ürünün güncel maliyeti; o da yoksa null (kâr hesabına girmez).
+export function birimMaliyet(s, urunMap) {
+  if (girilmis(s.maliyet)) return sayiAl(s.maliyet);
+  const u = urunMap?.get(s.urunId);
+  return maliyetVar(u) ? sayiAl(u.maliyet) : null;
+}
+
+export const yuzde = (n) => (n === null || n === undefined || !isFinite(n) ? '—'
+  : '%' + (Math.round(n * 1000) / 10).toLocaleString('tr-TR', { maximumFractionDigits: 1 }));
+
+// Fişlerin satış, maliyet ve kârı. Bedelsiz satırlar satışa girmez ama maliyeti kârdan düşer.
+// Maliyeti girilmemiş ürünlerin satışı kâr hesabına katılmaz, "eksik" olarak ayrıca döner.
+export function karOzeti(fisler, urunMap) {
+  let satis = 0, karSatis = 0, maliyet = 0, eksikSatis = 0, bedelsizMaliyet = 0;
+  const eksik = new Set();
+  for (const f of fisler) for (const s of f.satirlar || []) {
+    const adet = sayiAl(s.adet);
+    const tutar = s.bedelsiz ? 0 : adet * sayiAl(s.fiyat);
+    satis += tutar;
+    const m = birimMaliyet(s, urunMap);
+    if (m === null) { eksikSatis += tutar; eksik.add(s.urunId || s.ad); continue; }
+    karSatis += tutar; maliyet += m * adet;
+    if (s.bedelsiz) bedelsizMaliyet += m * adet;
+  }
+  const kar = karSatis - maliyet;
+  return { satis, karSatis, maliyet, kar, marj: karSatis > 0 ? kar / karSatis : null, eksikSatis, eksikUrun: eksik.size,
+    bedelsizMaliyet, hesaplandi: karSatis > 0 || maliyet > 0 };
+}
+
+// Fişlerdeki ürünleri toplar: [{ad, birim, grup, adet, bedelsizAdet, tutar, maliyet, kar}].
+// Bedelsiz adetler tutara girmez. Maliyeti bilinmeyen üründe kar = null.
+export function urunToplamlari(fisler, urunMap) {
   const m = new Map();
   for (const f of fisler) for (const s of f.satirlar || []) {
     const k = s.urunId || s.ad;
-    const r = m.get(k) || { ad: s.ad, birim: s.birim, adet: 0, bedelsizAdet: 0, tutar: 0 };
+    const r = m.get(k) || { ad: s.ad, birim: s.birim, grup: urunMap?.get(s.urunId)?.grup || 'Diğer',
+      adet: 0, bedelsizAdet: 0, tutar: 0, maliyet: 0, maliyetEksik: false };
     const adet = sayiAl(s.adet);
     r.adet += adet;
     if (s.bedelsiz) r.bedelsizAdet += adet; else r.tutar += adet * sayiAl(s.fiyat);
+    const bm = birimMaliyet(s, urunMap);
+    if (bm === null) r.maliyetEksik = true; else r.maliyet += bm * adet;
     m.set(k, r);
   }
-  return [...m.values()].sort((a, b) => b.tutar - a.tutar || b.adet - a.adet);
+  return [...m.values()].map((r) => ({ ...r, kar: r.maliyetEksik ? null : r.tutar - r.maliyet }))
+    .sort((a, b) => b.tutar - a.tutar || b.adet - a.adet);
+}
+
+// Ürün toplamlarını gruplara ayırır (grup sırası: Kahve, Sos, Püre ...), grup başına satış ve kâr.
+export function grupla(urunler, grupSirasi = []) {
+  const sira = (g) => { const i = grupSirasi.indexOf(g); return i < 0 ? 99 : i; };
+  const m = new Map();
+  for (const u of urunler) {
+    const g = m.get(u.grup) || { grup: u.grup, tutar: 0, kar: 0, karEksik: false, urunler: [] };
+    g.tutar += u.tutar;
+    if (u.kar === null) g.karEksik = true; else g.kar += u.kar;
+    g.urunler.push(u);
+    m.set(u.grup, g);
+  }
+  return [...m.values()].sort((a, b) => sira(a.grup) - sira(b.grup) || a.grup.localeCompare(b.grup, 'tr'));
+}
+
+// Fişleri şubelere ayırır: [{id, ad, fisler}] (satışa göre büyükten küçüğe)
+export function subelereAyir(fisler) {
+  const m = new Map();
+  for (const f of fisler) {
+    const s = m.get(f.subeId) || { id: f.subeId, ad: f.subeAd, fisler: [], satis: 0 };
+    s.fisler.push(f); s.satis += f.araToplam || 0; m.set(f.subeId, s);
+  }
+  return [...m.values()].sort((a, b) => b.satis - a.satis);
 }

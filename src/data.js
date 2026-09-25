@@ -48,13 +48,20 @@ export function useFis(id) {
 }
 
 // ---------- ürünler ----------
+// Hızlı maliyet girişi: sadece maliyeti günceller (null = sil). Beklemeden döner, internet yoksa sonra gider.
+export function maliyetKaydet(id, deger) {
+  return updateDoc(doc(db, 'urunler', id), { maliyet: deger, guncelleme: serverTimestamp() });
+}
+
 export async function urunKaydet(eski, veri) {
   const temiz = {
     ad: veri.ad.trim(), grup: veri.grup, birim: veri.birim,
     kdv: Number(veri.kdv), fiyat: sayiAl(veri.fiyat), adim: sayiAl(veri.adim) > 0 ? sayiAl(veri.adim) : 1,
     // şubeye özel fiyatlar: boş bırakılan şube standart fiyatı kullanır, 0 = bedelsiz
     subeFiyat: Object.fromEntries(Object.entries(veri.subeFiyat || {})
-      .filter(([, v]) => String(v ?? '').trim() !== '').map(([k, v]) => [k, sayiAl(v)]))
+      .filter(([, v]) => String(v ?? '').trim() !== '').map(([k, v]) => [k, sayiAl(v)])),
+    // birim maliyet (KDV hariç); boşsa null = girilmemiş
+    maliyet: String(veri.maliyet ?? '').trim() === '' ? null : sayiAl(veri.maliyet)
   };
   if (!eski) {
     return addDoc(collection(db, 'urunler'), { ...temiz, sira: Date.now(), fiyatGecmisi: [], olusturma: serverTimestamp() });
@@ -93,7 +100,9 @@ function fisVerisi(v) {
     .filter((s) => sayiAl(s.adet) > 0)
     .map((s) => ({
       urunId: s.urunId || null, ad: s.ad, birim: s.birim, fiyat: sayiAl(s.fiyat), kdv: Number(s.kdv), adet: sayiAl(s.adet),
-      bedelsiz: !!s.bedelsiz, subeFiyati: !!s.subeFiyati
+      bedelsiz: !!s.bedelsiz, subeFiyati: !!s.subeFiyati,
+      // o günkü birim maliyet: sonradan maliyet değişse de bu fişin kârı değişmez
+      maliyet: s.maliyet === undefined || s.maliyet === null || s.maliyet === '' ? null : sayiAl(s.maliyet)
     }));
   const t = hesapla(satirlar);
   return {

@@ -74,13 +74,17 @@ export async function pdfIndir(el, ad) {
     const kok = kopya.getBoundingClientRect();
     const olcek = canvas.height / kok.height;
     const y = (e, kenar) => (e.getBoundingClientRect()[kenar] - kok.top) * olcek;
-    // güvenli kesme noktaları: satır ve blok altları
-    const kesmeler = [...kopya.querySelectorAll('.belge-ust, .belge-taraf, thead tr, tbody tr, .belge-toplam > div, .belge-kalem, .belge-not, .belge-imza')]
-      .map((e) => y(e, 'bottom')).sort((a, b) => a - b);
-    const thead = kopya.querySelector('thead');
-    const govdeSon = kopya.querySelector('tbody tr:last-child');
-    const bas = thead ? { ust: y(thead, 'top'), alt: y(thead, 'bottom') } : null;
-    const tabloSonu = govdeSon ? y(govdeSon, 'bottom') : 0;
+    // güvenli kesme noktaları: satır ve blok altları, bölüm başlıklarının üstü (başlık sayfa sonunda yalnız kalmasın).
+    // Grup başlığı satırından hemen sonra da bölünmez.
+    const kesmeler = [
+      ...[...kopya.querySelectorAll('.belge-ust, .belge-taraf, tbody tr:not(.grup-satir), .belge-toplam > div, .belge-kalem, .belge-not, .belge-imza, [data-pdf-blok], .rapor-bolum')].map((e) => y(e, 'bottom')),
+      ...[...kopya.querySelectorAll('.rapor-baslik')].map((e) => y(e, 'top') - 2)
+    ].sort((a, b) => a - b);
+    // her tablo: başlık satırı ve son satırı; sayfa bir tablonun ortasında başlıyorsa başlığı tekrar edilir
+    const tablolar = [...kopya.querySelectorAll('table')].map((t) => {
+      const th = t.querySelector('thead'), son = t.querySelector('tbody tr:last-child');
+      return th && son ? { ust: y(th, 'top'), alt: y(th, 'bottom'), son: y(son, 'bottom') } : null;
+    }).filter(Boolean);
 
     const pdf = new jsPDF({ unit: 'mm', format: 'a4' });
     const kenar = 12, gen = 210 - kenar * 2, sayfaYuk = 297 - kenar * 2 - 6; // altta sayfa no payı
@@ -88,7 +92,8 @@ export async function pdfIndir(el, ad) {
     const sayfaPx = Math.floor(sayfaYuk * pxMm);
     let bas_y = 0, sayfa = 0;
     while (bas_y < canvas.height - 2) {
-      const tekrar = sayfa > 0 && bas && bas_y >= bas.alt && bas_y < tabloSonu - 2;
+      const bas = sayfa > 0 ? tablolar.find((t) => bas_y >= t.alt - 1 && bas_y < t.son - 2) : null;
+      const tekrar = !!bas;
       const baslikPx = tekrar ? Math.ceil(bas.alt - bas.ust) : 0;
       const sinir = bas_y + sayfaPx - baslikPx;
       let son = canvas.height;
