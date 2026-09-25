@@ -1,0 +1,13 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // Sadece yönetici hesabı okuyup yazabilir.
+    // Kullanıcı adını değiştirirsen buradaki e-postayı da değiştir.
+    function yonetici() {
+      return request.auth != null && request.auth.token.email == 'mikail@fioredepo.app';
+    }
+    match /{belge=**} {
+      allow read, write: if yonetici();
+    }
+  }
+}
