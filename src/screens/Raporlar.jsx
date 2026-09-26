@@ -76,7 +76,7 @@ export default function Raporlar({ ay, setAy, urunler: urunKatalogu }) {
             </div>
             {aylik.filter((a) => a.adet).map((a) => (
               <div key={a.k} className="liste-satir">
-                <span className="yigin"><b>{AYLAR[a.m]}</b><small>{a.adet} fiş{a.o.hesaplandi ? `, marj ${yuzde(a.o.marj)}` : ''}</small></span>
+                <span className="yigin"><b>{AYLAR[a.m]}</b><small>{a.adet} fiş{a.o.hesaplandi ? `, kâr oranı ${yuzde(a.o.oran)}` : ''}</small></span>
                 <span className="yigin sag"><b className="nowrap">{TL0(a.o.satis)}</b>{a.o.hesaplandi ? <KarYazisi kar={a.o.kar} /> : <small>maliyet yok</small>}</span>
               </div>
             ))}
@@ -89,7 +89,7 @@ export default function Raporlar({ ay, setAy, urunler: urunKatalogu }) {
               <a key={s.id} className="cubuk-satir" href={`#/sube/${s.id}`}>
                 <span className="cubuk-ust"><b>{s.ad}</b><span><b>{TL0(s.o.satis)}</b> <span className="soluk">(%{((s.o.satis / (o.satis || 1)) * 100).toLocaleString('tr-TR', { maximumFractionDigits: 1 })})</span></span></span>
                 <span className="cubuk siyah"><span style={{ width: `${Math.round((s.o.satis / enBuyuk) * 100)}%` }} /></span>
-                {s.o.hesaplandi && <span className="satir-arasi"><small>{s.fisler.length} fiş, marj {yuzde(s.o.marj)}</small><KarYazisi kar={s.o.kar} /></span>}
+                {s.o.hesaplandi && <span className="satir-arasi"><small>{s.fisler.length} fiş, kâr oranı {yuzde(s.o.oran)}</small><KarYazisi kar={s.o.kar} /></span>}
               </a>
             ))}
           </section>

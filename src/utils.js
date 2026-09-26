@@ -95,7 +95,8 @@ export function karOzeti(fisler, urunMap) {
     if (s.bedelsiz) bedelsizMaliyet += m * adet;
   }
   const kar = karSatis - maliyet;
-  return { satis, karSatis, maliyet, kar, marj: karSatis > 0 ? kar / karSatis : null, eksikSatis, eksikUrun: eksik.size,
+  // kâr oranı maliyete göre: 100.000 ₺ maliyetli ürünü 140.000 ₺'ye sattıysan %40
+  return { satis, karSatis, maliyet, kar, oran: maliyet > 0 ? kar / maliyet : null, eksikSatis, eksikUrun: eksik.size,
     bedelsizMaliyet, hesaplandi: karSatis > 0 || maliyet > 0 };
 }
 

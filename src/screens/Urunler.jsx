@@ -3,7 +3,7 @@ import { KarYazisi } from '../KarOzeti';
 import { maliyetKaydet, urunKaydet, urunSil } from '../data';
 import { GRUPLAR } from '../seed';
 import { AltMenu, Baslik, Bos, Cipler, Ikon, Panel, Yukleniyor } from '../ui';
-import { BIRIMLER, KDV_ORANLARI, TL, girisMiktar, maliyetVar, norm, para, sayiAl, tarihYaz, yuzde } from '../utils';
+import { BIRIMLER, KDV_ORANLARI, TL, girisMiktar, maliyetVar, norm, para, sayiAl, tarihYaz } from '../utils';
 
 const EKSIK = '__maliyet_eksik__';
 
@@ -56,7 +56,7 @@ export default function Urunler({ urunler, subeler, parametre }) {
   const karMetni = (fiyat) => {
     if (dMaliyet === null || String(fiyat ?? '').trim() === '') return '';
     const f = sayiAl(fiyat), k = f - dMaliyet;
-    return `Kâr ${para(k)} ₺${f > 0 ? ` (${yuzde(k / f)})` : ''}`;
+    return `Kâr ${para(k)} ₺${dMaliyet > 0 ? ` (%${(Math.round((k / dMaliyet) * 1000) / 10).toLocaleString('tr-TR')})` : ''}`;
   };
 
   return (

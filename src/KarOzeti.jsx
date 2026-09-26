@@ -2,7 +2,7 @@ import { TL0, yuzde } from './utils';
 
 const EKSIK_LINK = '#/urunler?maliyet=eksik';
 
-// Uygulama içindeki kâr özeti: maliyet, kâr, marj ve eksik maliyet uyarısı.
+// Uygulama içindeki kâr özeti: maliyet, kâr, kâr oranı (maliyete göre) ve eksik maliyet uyarısı.
 export function KarOzetKutusu({ o }) {
   if (!o.hesaplandi) {
     return <div className="uyari-kutu">Kârı görmek için ürünlere maliyet gir. <a href={EKSIK_LINK}>Maliyetleri gir</a></div>;
@@ -12,7 +12,7 @@ export function KarOzetKutusu({ o }) {
       <div className="kar-ozet">
         <div><small>Maliyet</small><b>{TL0(o.maliyet)}</b></div>
         <div><small>Kâr</small><b className={o.kar < 0 ? 'kar-eksi' : 'kar-arti'}>{TL0(o.kar)}</b></div>
-        <div><small>Kâr marjı</small><b>{yuzde(o.marj)}</b></div>
+        <div><small>Kâr oranı</small><b>{yuzde(o.oran)}</b></div>
       </div>
       {o.eksikUrun > 0 && (
         <div className="uyari-kutu">
