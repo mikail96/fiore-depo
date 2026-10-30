@@ -1,15 +1,19 @@
 import { useState } from 'react';
-import { subeKaydet, subeSil, useFisler } from '../data';
+import { subeFiyatlariniKopyala, subeKaydet, subeSil, useFisler } from '../data';
 import { AltMenu, Baslik, Bos, Ikon, Panel, Yukleniyor } from '../ui';
 import { AYLAR, TL0, ayAraligi } from '../utils';
 
 const BOS = { ad: '', yetkili: '', telefon: '', adres: '', aktif: true };
 
-export default function Subeler({ ay, subeler }) {
+export default function Subeler({ ay, subeler, urunler }) {
   const [bas, son] = ayAraligi(ay.y, ay.m);
   const { list: fisler } = useFisler(bas, son);
   const [duzen, setDuzen] = useState(null); // {eski, veri}
   const [hata, setHata] = useState('');
+  const [kaynak, setKaynak] = useState('');
+  const [kopyaBekle, setKopyaBekle] = useState(false);
+  const [kopyaMesaj, setKopyaMesaj] = useState('');
+  const ozelSayisi = (id) => urunler.list.filter((u) => { const v = u.subeFiyat?.[id]; return v !== undefined && v !== null; }).length;
 
   const ozet = new Map();
   for (const f of fisler) {
@@ -19,7 +23,7 @@ export default function Subeler({ ay, subeler }) {
   const toplam = fisler.reduce((a, f) => a + (f.araToplam || 0), 0);
   const aktifSayi = subeler.list.filter((s) => s.aktif !== false).length;
 
-  const ac = (s) => { setHata(''); setDuzen(s ? { eski: s, veri: { ...BOS, ...s } } : { eski: null, veri: { ...BOS } }); };
+  const ac = (s) => { setHata(''); setKaynak(''); setKopyaMesaj(''); setDuzen(s ? { eski: s, veri: { ...BOS, ...s } } : { eski: null, veri: { ...BOS } }); };
   const alan = (k) => (e) => setDuzen((d) => ({ ...d, veri: { ...d.veri, [k]: e.target.type === 'checkbox' ? e.target.checked : e.target.value } }));
 
   function kaydet() {
@@ -29,6 +33,17 @@ export default function Subeler({ ay, subeler }) {
     }
     subeKaydet(duzen.eski, duzen.veri).catch(() => {});
     setDuzen(null);
+  }
+  async function kopyala() {
+    const k = subeler.list.find((s) => s.id === kaynak);
+    if (!k) return;
+    if (!window.confirm(`${k.ad} şubesinin özel fiyatları ${duzen.eski.ad} şubesine kopyalansın mı? ${duzen.eski.ad} şubesinin mevcut özel fiyatlarının yerine geçer.`)) return;
+    setKopyaBekle(true); setKopyaMesaj('');
+    try {
+      const n = await subeFiyatlariniKopyala(urunler.list, k.id, duzen.eski.id);
+      setKopyaMesaj(n ? `${n} ürünün fiyatı ${k.ad} ile aynı yapıldı.` : `Fiyatlar zaten ${k.ad} ile aynı.`);
+    } catch { setKopyaMesaj('Kopyalanamadı. İnternet bağlantısını kontrol edip tekrar dene.'); }
+    setKopyaBekle(false);
   }
   function sil() {
     if (!window.confirm(`${duzen.eski.ad} şubesi kaldırılsın mı? Geçmiş fişleri raporlarda kalır.`)) return;
@@ -67,6 +82,18 @@ export default function Subeler({ ay, subeler }) {
             <label className="alan"><span className="etiket">Telefon</span><input className="giris-kutu" type="tel" placeholder="05XX XXX XX XX" value={duzen.veri.telefon} onChange={alan('telefon')} /></label>
             <label className="alan"><span className="etiket">Adres</span><textarea rows={2} placeholder="Açık adres" value={duzen.veri.adres} onChange={alan('adres')} /></label>
             <label className="kutucuk kutu"><input type="checkbox" checked={duzen.veri.aktif} onChange={alan('aktif')} /><span>Aktif: bu şubeye fiş kesilebilir</span></label>
+            {duzen.eski && subeler.list.length > 1 && (
+              <div className="sube-fiyatlari">
+                <span className="etiket">Fiyatları başka şubeden kopyala</span>
+                <small>Seçtiğin şubenin bütün özel fiyatları bu şubeye de uygulanır. Bu şubede şu an {ozelSayisi(duzen.eski.id)} üründe özel fiyat var.</small>
+                <select className="giris-kutu" value={kaynak} onChange={(e) => { setKaynak(e.target.value); setKopyaMesaj(''); }} aria-label="Fiyatları kopyalanacak şube">
+                  <option value="">Şube seç</option>
+                  {subeler.list.filter((s) => s.id !== duzen.eski.id).map((s) => <option key={s.id} value={s.id}>{s.ad} ({ozelSayisi(s.id)} özel fiyat)</option>)}
+                </select>
+                <button type="button" className="dugme cizgili" onClick={kopyala} disabled={!kaynak || kopyaBekle}>{kopyaBekle ? 'Kopyalanıyor…' : 'Fiyatları kopyala'}</button>
+                {kopyaMesaj && <p className="kucuk-yazi" role="status"><b>{kopyaMesaj}</b></p>}
+              </div>
+            )}
             {duzen.eski && <p className="soluk kucuk-yazi">Kaldırılan şubenin geçmiş fişleri raporlarda kalır.</p>}
             {hata && <p className="hata" role="alert">{hata}</p>}
             <div className="dugme-satiri">

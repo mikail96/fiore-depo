@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import {
   collection, doc, onSnapshot, query, orderBy, where, limit, getDocs, Timestamp,
-  addDoc, setDoc, updateDoc, deleteDoc, writeBatch, serverTimestamp, arrayUnion
+  addDoc, setDoc, updateDoc, deleteDoc, writeBatch, serverTimestamp, arrayUnion, deleteField
 } from 'firebase/firestore';
 import { db } from './firebase';
 import { fiyatBul, hesapla, sayiAl } from './utils';
@@ -75,6 +75,21 @@ export async function urunKaydet(eski, veri) {
 export const urunSil = (id) => deleteDoc(doc(db, 'urunler', id));
 
 // ---------- şubeler ----------
+// Bir şubenin bütün özel fiyatlarını başka şubeye kopyalar. Kaynakta özel fiyatı olmayan üründe
+// hedefin özel fiyatı da kaldırılır (standart fiyata döner). Değişen ürün sayısını döner.
+export async function subeFiyatlariniKopyala(urunler, kaynakId, hedefId) {
+  const degisen = urunler.filter((u) => (u.subeFiyat || {})[kaynakId] !== (u.subeFiyat || {})[hedefId]);
+  for (let i = 0; i < degisen.length; i += 400) {
+    const batch = writeBatch(db);
+    for (const u of degisen.slice(i, i + 400)) {
+      const v = (u.subeFiyat || {})[kaynakId];
+      batch.update(doc(db, 'urunler', u.id), { [`subeFiyat.${hedefId}`]: v === undefined || v === null ? deleteField() : v, guncelleme: serverTimestamp() });
+    }
+    await batch.commit();
+  }
+  return degisen.length;
+}
+
 export async function subeKaydet(eski, veri) {
   const temiz = {
     ad: veri.ad.trim(), yetkili: veri.yetkili.trim(), telefon: veri.telefon.trim(),
